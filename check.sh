@@ -22,7 +22,17 @@ UA="Mozilla/5.0 (compatible; JET-uptime; +https://github.com/jta333/jet-fallback
 REMIND_SECS=3600
 
 check_once() {
-  curl -sS -L -A "$UA" -o /dev/null --max-time 20 -w "%{http_code}" "$1" 2>/dev/null || echo "000"
+  # curl prints the -w code even when it fails (000 on timeout/DNS/connect errors),
+  # so no fallback may be appended on failure: "000" + a fallback echo made "000000",
+  # which slipped past the != "000" test and read a dead site as UP (caught by the
+  # negative control on 2026-08-14). Sanitize to exactly three digits instead.
+  local code
+  code=$(curl -sS -L -A "$UA" -o /dev/null --max-time 20 -w "%{http_code}" "$1" 2>/dev/null || true)
+  code=${code: -3}
+  case "$code" in
+    [0-9][0-9][0-9]) echo "$code" ;;
+    *) echo "000" ;;
+  esac
 }
 
 [ -s state.json ] || echo '{}' > state.json
