@@ -1,0 +1,4 @@
+.vercel
+scripts/backup-*.json
+scripts/backup-*.json.restored-*
+state.json

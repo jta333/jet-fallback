@@ -1,0 +1,25 @@
+name: keepalive
+
+# GitHub silently disables scheduled workflows in a repo with no commit activity
+# for 60 days. This empty monthly commit resets that clock so the uptime monitor
+# never dies quietly.
+
+on:
+  schedule:
+    - cron: "17 8 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Empty keepalive commit
+        run: |
+          git config user.name "jet-uptime-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit --allow-empty -m "keepalive: reset the 60-day scheduled-workflow clock"
+          git push

@@ -1,0 +1,42 @@
+name: uptime
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      extra_url:
+        description: "Extra URL to check once (used to test that alerting can fail)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore previous state
+        uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: uptime-state-${{ github.run_id }}
+          restore-keys: |
+            uptime-state-
+
+      - name: Check all sites
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          EXTRA_URL: ${{ github.event.inputs.extra_url }}
+        run: bash check.sh
+
+      - name: Save state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: uptime-state-${{ github.run_id }}
