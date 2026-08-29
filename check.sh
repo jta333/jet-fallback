@@ -23,6 +23,13 @@ SITES=(
   # thing watching it died". A 5xx is DOWN and a timeout is DOWN, which is
   # exactly the pair of failures worth hearing about. Loop L222.
   "https://jet-command-center-production.up.railway.app/api/lead-canary/health"
+  # Not a site: the ops-watchdog scheduler's dead man's switch, same shape and same
+  # reason as the lead-canary probe above. It answers 200 while the hourly cron has
+  # stamped ops_watchdog_last_run within the last ~2h15m and 503 once that goes stale,
+  # has never happened, or cannot be read. It replaces the ops-watchdog weekly
+  # Monday all-clear email, which existed only to prove the same thing on a timer.
+  # Loop L222, row C5 of the 2026-08-29 notification load audit.
+  "https://msuhogoehzpixcnmsbzb.supabase.co/functions/v1/ops-watchdog"
 )
 if [ -n "${EXTRA_URL:-}" ]; then SITES+=("$EXTRA_URL"); fi
 
@@ -35,6 +42,7 @@ UA="Mozilla/5.0 (compatible; JET-uptime; +https://github.com/jta333/jet-fallback
 label_for() {
   case "$1" in
     */api/lead-canary/health) echo "Lead pipeline canary (stale, unreachable, or not deployed)" ;;
+    */functions/v1/ops-watchdog) echo "Ops watchdog scheduler (stale, unreachable, or not deployed)" ;;
     *) echo "$1" ;;
   esac
 }
@@ -51,6 +59,7 @@ label_for() {
 strict_200() {
   case "$1" in
     */api/lead-canary/health) return 0 ;;
+    */functions/v1/ops-watchdog) return 0 ;;
     *) return 1 ;;
   esac
 }
