@@ -68,3 +68,49 @@ tree, and emails Jay when either stops working.
 | `MAKE_API_TOKEN` | Make API token, scopes `scenarios:read` and `hooks:read` | Make: avatar (bottom left) then Profile then the API tab then Add token |
 | `RESEND_API_KEY` | Resend sending-only key scoped to `jet.events` | `https://resend.com/api-keys` |
 | `ALERT_EMAIL_TO` | optional, defaults to `j@jet.events` | n/a |
+
+## reMarkable PDF runner watchdog (`remarkable-health.sh`)
+
+Watches the JET reMarkable PDF runner on homedrums (brain loop `L240`), which renders Jay's
+tablet notes to readable PDFs and copies them into the `_JET Notes` folder in Google Drive.
+
+- **Runs:** `.github/workflows/remarkable-health.yml`, every 15 minutes, plus manual
+  `workflow_dispatch` with `topic_override` (read a throwaway topic instead of the real one,
+  so a condition can be proven without touching production) and `reset_state` (clear the
+  up/down state so a transition email fires again).
+- **Watches:** one ntfy topic. The runner posts a single status per run, titled
+  `jet-remarkable-pdf`, carrying `status`, `reason`, and the counts `rendered`, `pending`,
+  `uploaded`. Counts and reason codes only: notebook names are client names and never travel.
+- **Unhealthy means:** no status in the last 12 hours (six missed runs at the 2 hour cadence),
+  or the latest status says `fail`, or the topic answered non-200, or its newest message could
+  not be parsed, or the `REMARKABLE_NTFY_TOPIC` secret is missing. The last three count as
+  unhealthy on purpose: a check that cannot run is never a silent pass.
+- **Why 12 hours and not 24:** `ntfy.sh` keeps messages for about 12 hours, so a longer window
+  would read an expired cache as healthy.
+- **Alerts:** one email per incident via Resend, sent once on the down transition, repeated
+  hourly while unresolved, once on recovery. The repair steps are selected by the reported
+  reason (`login_expired`, `render_failed`, `upload_failed`, `crash`, plus `silent` and
+  `cannot evaluate`), so a healthy subsystem is never blamed.
+- **Why it lives here and not on homedrums:** the failures it catches are that machine being
+  off, its scheduled task never firing, and its reMarkable web session quietly expiring.
+  Nothing running there can report any of those.
+- **A red run of this workflow means the script itself broke.** A detected problem with the
+  runner exits 0 and emails instead, so one incident never sends two notifications.
+
+### Secrets it needs
+
+| Secret | What | Where to get it |
+| --- | --- | --- |
+| `REMARKABLE_NTFY_TOPIC` | The ntfy topic the runner posts to. Not committed: this repository is public, and anyone holding the topic could post a fake `ok` and silence the alarm. | Generated when the runner is built on homedrums; it is the `topic` value in `C:\JET\remarkable-pdf\config.json` |
+| `RESEND_API_KEY` | shared with `make-health` | `https://resend.com/api-keys` |
+| `ALERT_EMAIL_TO` | optional, defaults to `j@jet.events` | n/a |
+
+Set the topic with one line, from a machine whose `gh` is signed in as `jta333`:
+
+```
+gh secret set REMARKABLE_NTFY_TOPIC --repo jta333/jet-fallback --body "THE_TOPIC"
+```
+
+**Do not merge this workflow to `main` before the runner exists on homedrums.** The schedule
+starts on merge, finds no status, and correctly reports the runner as silent, which would mean
+a `RED:` email every hour for an automation that has not been built yet.

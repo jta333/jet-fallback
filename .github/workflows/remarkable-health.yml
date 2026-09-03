@@ -1,0 +1,62 @@
+name: remarkable-health
+
+# Watches the JET reMarkable PDF runner on homedrums (loop L240). It runs here,
+# outside that machine, because the failures it catches are the machine being
+# off, its scheduled task never firing, and its reMarkable web session quietly
+# expiring. Nothing running on homedrums can report any of those.
+#
+# A red run of THIS workflow means the script itself broke. A detected problem
+# with the runner exits 0 and sends an email instead, so one incident never
+# produces both an alert email and a GitHub failure email.
+#
+# The scheduled check only starts working once REMARKABLE_NTFY_TOPIC is set on
+# this repository. Until then every run reports "cannot evaluate", which is RED
+# on purpose: a watchdog that cannot read its input must never look healthy.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      topic_override:
+        description: "Read this ntfy topic instead of the secret, to prove a condition against a throwaway topic"
+        required: false
+        default: ""
+      reset_state:
+        description: "Clear the up/down state before checking, so a transition email fires again"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore previous state
+        uses: actions/cache/restore@v4
+        with:
+          path: remarkable-health-state.json
+          key: remarkable-health-state-${{ github.run_id }}
+          restore-keys: |
+            remarkable-health-state-
+
+      - name: Check reMarkable PDF runner health
+        env:
+          REMARKABLE_NTFY_TOPIC: ${{ secrets.REMARKABLE_NTFY_TOPIC }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          TOPIC_OVERRIDE: ${{ github.event.inputs.topic_override }}
+          RESET_STATE: ${{ github.event.inputs.reset_state }}
+        run: bash remarkable-health.sh
+
+      - name: Save state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: remarkable-health-state.json
+          key: remarkable-health-state-${{ github.run_id }}
