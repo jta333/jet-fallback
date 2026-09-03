@@ -205,7 +205,7 @@ if [ "$problem_count" -gt 0 ]; then
     # wrong thing and teach him the alert is noise.
     steps=()
     if [ "$fix_watchdog" = "1" ]; then
-      steps+=("This checker could not read Make, so nothing below is confirmed. Open https://us2.make.com/api-tokens and confirm the JET watchdog API token still exists and has the scenarios:read and hooks:read scopes. If it is gone, add a new token there, then paste it into https://github.com/jta333/jet-fallback/settings/secrets/actions as MAKE_API_TOKEN.")
+      steps+=("This checker could not read Make, so nothing below is confirmed. In Make, click your avatar in the bottom-left corner, then Profile, then the API tab. Confirm the JET watchdog token is still listed and still has the scenarios:read and hooks:read scopes. If it is gone, click Add token, set those two scopes, copy the token immediately (Make hides it once you leave that page), then store it by running this one line locally: gh secret set MAKE_API_TOKEN --repo jta333/jet-fallback --body "THE_NEW_TOKEN"")
     fi
     if [ "$fix_scenario" = "1" ]; then
       steps+=("Open Make Connections at https://us2.make.com/${MAKE_TEAM}/connections and find \"My Google connection\". There are two with that name: pick the Google Restricted one on j@jet.events, NOT the developerproto one. Click Reauthorize and sign in as j@jet.events. This is the usual cause; that refresh token has now been revoked three times (2026-06-29, 2026-07-21, 2026-08-25).")

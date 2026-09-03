@@ -65,6 +65,6 @@ tree, and emails Jay when either stops working.
 
 | Secret | What | Where to get it |
 | --- | --- | --- |
-| `MAKE_API_TOKEN` | Make API token, scopes `scenarios:read` and `hooks:read` | `https://us2.make.com/api-tokens` |
+| `MAKE_API_TOKEN` | Make API token, scopes `scenarios:read` and `hooks:read` | Make: avatar (bottom left) then Profile then the API tab then Add token |
 | `RESEND_API_KEY` | Resend sending-only key scoped to `jet.events` | `https://resend.com/api-keys` |
 | `ALERT_EMAIL_TO` | optional, defaults to `j@jet.events` | n/a |
