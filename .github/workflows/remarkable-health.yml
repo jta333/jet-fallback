@@ -14,8 +14,15 @@ name: remarkable-health
 # on purpose: a watchdog that cannot read its input must never look healthy.
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
+  # THE SCHEDULE IS DELIBERATELY OFF UNTIL THE RUNNER EXISTS ON homedrums.
+  # Enable it by uncommenting the two lines below, in the same change that ships
+  # C:\JET\remarkable-pdf\run.ps1 and sets the REMARKABLE_NTFY_TOPIC secret.
+  # Turned on any earlier, this check correctly finds no status, calls the runner
+  # silent, and emails RED every hour about an automation nobody has built yet.
+  # A watchdog must never read "has never run" as healthy, so the fix is to not
+  # schedule it yet, not to soften the check.
+  # schedule:
+  #   - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       topic_override:

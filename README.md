@@ -74,7 +74,8 @@ tree, and emails Jay when either stops working.
 Watches the JET reMarkable PDF runner on homedrums (brain loop `L240`), which renders Jay's
 tablet notes to readable PDFs and copies them into the `_JET Notes` folder in Google Drive.
 
-- **Runs:** `.github/workflows/remarkable-health.yml`, every 15 minutes, plus manual
+- **Runs:** `.github/workflows/remarkable-health.yml`. The 15 minute schedule is commented
+  out until the runner exists on homedrums, so today it is manual only:
   `workflow_dispatch` with `topic_override` (read a throwaway topic instead of the real one,
   so a condition can be proven without touching production) and `reset_state` (clear the
   up/down state so a transition email fires again).
@@ -111,6 +112,13 @@ Set the topic with one line, from a machine whose `gh` is signed in as `jta333`:
 gh secret set REMARKABLE_NTFY_TOPIC --repo jta333/jet-fallback --body "THE_TOPIC"
 ```
 
-**Do not merge this workflow to `main` before the runner exists on homedrums.** The schedule
-starts on merge, finds no status, and correctly reports the runner as silent, which would mean
-a `RED:` email every hour for an automation that has not been built yet.
+**Merging this to `main` is safe, because the schedule is commented out.** It has to reach
+`main` to be testable at all: GitHub only offers `workflow_dispatch` for workflows present on
+the default branch, so a workflow living on a feature branch cannot be run even manually and
+answers `404` to a dispatch. Proven on 2026-09-03: `make-health.yml` dispatched successfully
+against that same feature branch while `remarkable-health.yml` on that branch returned `404`.
+
+**Turn the schedule on only when the runner is live on homedrums**, in the same change that
+sets `REMARKABLE_NTFY_TOPIC`. Uncomment the two `schedule` lines in the workflow. Enabled any
+earlier, the check correctly finds no status, calls the runner silent, and emails `RED:` every
+hour about an automation that does not exist yet.
