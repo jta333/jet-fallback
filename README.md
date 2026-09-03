@@ -37,3 +37,34 @@ Full teaching-format documentation of every piece: `jet-claude-central`
 This repo is public so the uptime schedule gets unlimited GitHub Actions minutes.
 Nothing secret lives here: the page content is public by definition, the monitored URLs
 are public, and the ntfy topic is a repo secret.
+
+## Make automation health watchdog (`make-health.sh`)
+
+Watches the two Make scenarios that build each new JET project's Google Drive folder
+tree, and emails Jay when either stops working.
+
+- **Runs:** `.github/workflows/make-health.yml`, every 15 minutes, plus manual
+  `workflow_dispatch` with a `force_test` input that forces a RED so the alert path can
+  be proven end to end.
+- **Watches:** Make scenarios `2785090` (Google Drive Folder Creation on Item Creation)
+  and `2798917` (File Upload Sync to Google Drive Subfolder), and their webhook queues.
+- **Unhealthy means:** scenario switched off, flagged invalid by Make, more than
+  `QUEUE_LIMIT` events stuck in its webhook queue, or the Make API unreadable. Unreadable
+  counts as unhealthy on purpose: a check that cannot run is never a silent pass.
+- **Alerts:** one merged email per incident via Resend, sent once on the down transition,
+  repeated hourly while unresolved, and once on recovery. Repair steps are selected to
+  match the actual cause, so a healthy subsystem is never blamed.
+- **Why it lives here and not in Make:** the failure it catches is Make deactivating a
+  scenario, so nothing inside Make can be trusted to report it. On 2026-08-25 the Drive
+  scenario was auto-deactivated by a revoked Google refresh token and nobody was told for
+  nine days.
+- **A red run of this workflow means the script itself broke.** A detected problem with
+  the scenarios exits 0 and emails instead, so one incident never sends two notifications.
+
+### Secrets it needs
+
+| Secret | What | Where to get it |
+| --- | --- | --- |
+| `MAKE_API_TOKEN` | Make API token, scopes `scenarios:read` and `hooks:read` | Make: avatar (bottom left) then Profile then the API tab then Add token |
+| `RESEND_API_KEY` | Resend sending-only key scoped to `jet.events` | `https://resend.com/api-keys` |
+| `ALERT_EMAIL_TO` | optional, defaults to `j@jet.events` | n/a |
