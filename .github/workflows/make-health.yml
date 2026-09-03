@@ -1,0 +1,52 @@
+name: make-health
+
+# Watches the JET Make automations that build each new project's Google Drive
+# folder. It runs here, outside Make, because the failure it catches is Make
+# switching a scenario off: nothing inside Make can be trusted to report that.
+#
+# A red run of THIS workflow means the script itself broke. A detected problem
+# with the scenarios exits 0 and sends an email instead, so one incident never
+# produces both an alert email and a GitHub failure email.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      force_test:
+        description: "Force a RED and send the alert email, to prove the alert path works"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore previous state
+        uses: actions/cache/restore@v4
+        with:
+          path: make-health-state.json
+          key: make-health-state-${{ github.run_id }}
+          restore-keys: |
+            make-health-state-
+
+      - name: Check Make scenario health
+        env:
+          MAKE_API_TOKEN: ${{ secrets.MAKE_API_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          FORCE_TEST: ${{ github.event.inputs.force_test }}
+        run: bash make-health.sh
+
+      - name: Save state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: make-health-state.json
+          key: make-health-state-${{ github.run_id }}
