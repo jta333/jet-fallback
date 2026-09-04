@@ -58,7 +58,7 @@ fi
 cause=""            # login_expired | render_failed | upload_failed | crash | silent | cannot_evaluate
 headline=""
 what_happened=""
-status_at="unknown"
+status_at="none inside the 12 hour window"
 
 fail_eval() {
   cause="cannot_evaluate"
@@ -104,7 +104,7 @@ else
         rendered=$(printf '%s' "$parsed" | jq -r '.rendered // "?"')
         pending=$(printf '%s' "$parsed" | jq -r '.pending // "?"')
         uploaded=$(printf '%s' "$parsed" | jq -r '.uploaded // "?"')
-        status_at=$(printf '%s' "$parsed" | jq -r '.at // "unknown"')
+        status_at=$(printf '%s' "$parsed" | jq -r '.at // "not stamped"')
         age_mins=$(( (now - msg_time) / 60 ))
 
         if [ $((now - msg_time)) -gt "$SILENT_SECS" ]; then
@@ -237,10 +237,10 @@ STEPS
    session, so a sign-out or a reboot that lands on the lock screen stops them cold.
 
 2. Kick the job by hand, one line:
-   `ssh Jay@100.100.54.91 "schtasks /Run /TN \"JET reMarkable PDF Render\""`
+   `ssh Jay@100.100.54.91 'schtasks /Run /TN "JET reMarkable PDF Render"'`
 
 3. Read what it said, one line:
-   `ssh Jay@100.100.54.91 "powershell -NoProfile -Command \"Get-Content C:\JET\remarkable-pdf\run.log -Tail 20\""`
+   `ssh Jay@100.100.54.91 'powershell -NoProfile -Command "Get-Content C:\JET\remarkable-pdf\run.log -Tail 20"'`
 
 4. If that does not explain it, on StudioPro open Claude Code and paste this:
 
