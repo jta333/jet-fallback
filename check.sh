@@ -30,6 +30,13 @@ SITES=(
   # Monday all-clear email, which existed only to prove the same thing on a timer.
   # Loop L222, row C5 of the 2026-08-29 notification load audit.
   "https://msuhogoehzpixcnmsbzb.supabase.co/functions/v1/ops-watchdog"
+  # Not a page, a static asset: jet.furniture served a 429 with a 7-day
+  # Cache-Control on 2026-09-01, and Cloudflare cached and re-served that 429
+  # for days while the homepage itself kept answering 200, unstyled. A
+  # page-level check alone cannot see that failure, because 4xx counts as UP
+  # for every other target here. This one target must answer 200 exactly, so
+  # a cached error under it is caught in minutes, not days. L249.
+  "https://jet.furniture/wp-content/themes/flatsome/assets/css/flatsome.css"
 )
 if [ -n "${EXTRA_URL:-}" ]; then SITES+=("$EXTRA_URL"); fi
 
@@ -43,6 +50,7 @@ label_for() {
   case "$1" in
     */api/lead-canary/health) echo "Lead pipeline canary (stale, unreachable, or not deployed)" ;;
     */functions/v1/ops-watchdog) echo "Ops watchdog scheduler (stale, unreachable, or not deployed)" ;;
+    */flatsome/assets/css/flatsome.css) echo "jet.furniture static assets (cached-error outage canary)" ;;
     *) echo "$1" ;;
   esac
 }
@@ -51,29 +59,42 @@ label_for() {
 #
 # Every site here is a page, and for a page any answer proves reachability, so
 # a 4xx counts as UP: a Cloudflare bot challenge or an auth wall is not an
-# outage, and the real one was a 522. The canary probe is not a page. Its
-# entire contract IS the status code, and the two ways it can be wrong are a
-# 503 (the canary went stale) and a 404 (the route is gone, or was never
-# deployed). Under the general rule that 404 would read as UP and the dead
-# man's switch would sit green forever, which is a check that cannot fail.
+# outage, and the real one was a 522. The canary probes are not pages. Their
+# entire contract IS the status code, and the two ways they can be wrong are a
+# 503 (gone stale) and a 404 (the route is gone, or was never deployed).
+# Under the general rule that 404 would read as UP and the dead man's switch
+# would sit green forever, which is a check that cannot fail. The flatsome.css
+# asset is a page dependency, not a page: a real static asset never legitimately
+# answers 4xx, so unlike the pages above, a 429/404 here means "reachable but
+# wrong" and must be treated as down, not tolerated as a bot challenge. L249.
 strict_200() {
   case "$1" in
     */api/lead-canary/health) return 0 ;;
     */functions/v1/ops-watchdog) return 0 ;;
+    */flatsome/assets/css/flatsome.css) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-# What a strict target's body must contain for its 200 to be believed.
+# What a strict target's 200 must contain in its body to be believed, keyed
+# per target since not every strict target shares one marker.
 #
-# A status code alone is NOT evidence here, proven against the live URL on
-# 2026-08-29: an unauthenticated request to the canary probe answered 307 to
-# the sign-in page, and this script follows redirects, so it landed on a 200
-# HTML login page. Status-code-only logic would have called a dead man's
-# switch that has never once worked UP, forever. Same family of bug as the
-# 000000 false-UP caught on 2026-08-14, and the same fix: make the check
-# assert the thing it actually cares about.
-STRICT_MARKER='"status":"ok"'
+# A status code alone is NOT evidence for the canary probes, proven against
+# the live URL on 2026-08-29: an unauthenticated request answered 307 to the
+# sign-in page, and this script follows redirects, so it landed on a 200 HTML
+# login page. Status-code-only logic would have called a dead man's switch
+# that has never once worked UP, forever. Same family of bug as the 000000
+# false-UP caught on 2026-08-14, and the same fix: make the check assert the
+# thing it actually cares about. The flatsome.css asset has no such stand-in
+# page to be redirected to, so its status code alone is the evidence: no
+# marker required.
+marker_for() {
+  case "$1" in
+    */api/lead-canary/health) echo '"status":"ok"' ;;
+    */functions/v1/ops-watchdog) echo '"status":"ok"' ;;
+    *) echo "" ;;
+  esac
+}
 
 REMIND_SECS=3600
 
@@ -82,7 +103,7 @@ check_once() {
   # so no fallback may be appended on failure: "000" + a fallback echo made "000000",
   # which slipped past the != "000" test and read a dead site as UP (caught by the
   # negative control on 2026-08-14). Sanitize to exactly three digits instead.
-  local code body
+  local code body marker
   if strict_200 "$1"; then
     # Strict targets are judged on their body as well as their status, so the
     # response is kept instead of discarded. The code is appended on its own
@@ -103,10 +124,13 @@ check_once() {
   # that is an auth redirect followed to a login page, or some other stand-in.
   # Report it as no answer, so it can never be read as healthy.
   if [ "$code" = "200" ] && strict_200 "$1"; then
-    case "$body" in
-      *"$STRICT_MARKER"*) ;;
-      *) code="000" ;;
-    esac
+    marker=$(marker_for "$1")
+    if [ -n "$marker" ]; then
+      case "$body" in
+        *"$marker"*) ;;
+        *) code="000" ;;
+      esac
+    fi
   fi
   echo "$code"
 }
